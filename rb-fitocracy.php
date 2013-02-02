@@ -18,3 +18,5 @@ add_action('init', array($rbf, 'init'));
 add_action('admin_init', array($rbf, 'admin_init'));
 add_action('admin_menu', array($rbf, 'admin_menu'));
 add_action('admin_notices', array($rbf, 'admin_notices'));
+register_sidebar_widget('RB Fitocracy Widget', array($rbf, 'render_widget'));
+register_widget_control('RB Fitocracy Widget', array($rbf, 'render_widget_controls'));
