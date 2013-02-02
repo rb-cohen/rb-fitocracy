@@ -32,7 +32,7 @@
 </style>
 
 <div class="rb-fitocracy-widget">
-    <a href="https://www.fitocracy.com/profile/<?php echo $user->username; ?>" class="rb-fitocracy-username"><?php echo $user->username; ?></a>
+    <a href="https://www.fitocracy.com/profile/<?php echo $user->username; ?>" class="rb-fitocracy-username" target="_blank"><?php echo $user->username; ?></a>
     <span class="rb-fitocracy-level">Level <span><?php echo $user->level; ?></span></span>
 
     <div class="rb-fitocracy-bar-container">

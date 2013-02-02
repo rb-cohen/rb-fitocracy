@@ -11,6 +11,7 @@ class RbFitocracy {
         'rb-fitocracy-password',
     );
     protected $_options;
+    protected $_fitocracy;
 
     public function init() {
         if (version_compare(PHP_VERSION, '5.2.4', '<')) {
