@@ -5,6 +5,10 @@ require_once(__DIR__ . '/FitocracyException.php');
 
 class RbFitocracy {
 
+    const CACHE_TRY = 1;
+    const CACHE_SET = 2;
+    const CACHE_DEFAULT = 3;
+
     public $pluginName = 'RB Fitocracy';
     public $availableOptions = array(
         'rb-fitocracy-username',
@@ -23,10 +27,10 @@ class RbFitocracy {
             deactivate_plugins(basename(RBFITOCRACY_FILE));
             wp_die(__("RB Fitocracy requires mcrypt. Ask your host how to enable mcrypt for PHP on your servers.", 'rb-fitocracy'));
         }
-    }
 
-    public function admin_init() {
-        
+        if (!wp_next_scheduled('rb-fitocracy-update-user')) {
+            wp_schedule_event(time(), 'hourly', 'rb-fitocracy-update-user');
+        }
     }
 
     public function admin_menu() {
@@ -38,7 +42,7 @@ class RbFitocracy {
         );
     }
 
-    public function admin_options_form() {
+    public function admin_options_save() {
         if (!empty($_POST['rbfitocracy_submit'])) {
             $options = array(
                 'rb-fitocracy-username' => sanitize_text_field($_POST['rb-fitocracy-username']),
@@ -48,16 +52,22 @@ class RbFitocracy {
                 $options['rb-fitocracy-password'] = $this->encrypt($_POST['rb-fitocracy-password'], AUTH_KEY);
             }
 
-            $this->save_options($options);
-            $updateSuccess = true;
-        }
+            $this->save_options($options)
+                    ->cache_clear('rb-fitocracy-user_' . $options['rb-fitocracy-username'])
+                    ->get_options(true);
 
+            wp_redirect(admin_url('options-general.php?page=rb-fitocracy.php&rb-saved=true'));
+        }
+    }
+
+    public function admin_options_form() {
         $options = $this->get_options();
+        $updateSuccess = (bool) $_GET['rb-saved'];
         include_once(RBFITOCRACY_DIR . '/src/templates/admin-options.php');
     }
 
-    public function get_options() {
-        if ($this->_options === null) {
+    public function get_options($refresh = false) {
+        if ($this->_options === null || $refresh) {
             $this->_options = array();
             foreach ($this->availableOptions as $option) {
                 $this->_options[$option] = get_option($option);
@@ -120,26 +130,44 @@ class RbFitocracy {
         return $this->_fitocracy;
     }
 
-    public function get_user($username) {
+    public function get_user($username, $cacheStrategy = self::CACHE_DEFAULT) {
         $cacheKey = 'rb-fitocracy-user_' . $username;
 
-        if (!$user = $this->cache_get($cacheKey)) {
+        if ($cacheStrategy & self::CACHE_TRY || !$user = $this->cache_get($cacheKey)) {
             $fitocracy = $this->get_fitocracy();
             $user = $fitocracy->getUser($username);
 
-            $this->cache_set($cacheKey, $user);
+            if ($cacheStrategy & self::CACHE_SET) {
+                $this->cache_set($cacheKey, $user, 86400);
+            }
         }
 
         return $user;
     }
 
-    public function cache_set($key, $data, $timeout = 300) {
+    public function update_user_cache() {
+        try {
+            $username = $this->get_option('rb-fitocracy-username');
+            $this->get_user($username, self::CACHE_SET);
+        } catch (Exception $e) {
+            echo $e;
+        }
+        
+        return $this;
+    }
+
+    public function cache_set($key, $data, $timeout = 86400) {
         set_transient($key, $data, $timeout);
         return $this;
     }
 
     public function cache_get($key) {
         return get_transient($key);
+    }
+
+    public function cache_clear($key) {
+        delete_transient($key);
+        return $this;
     }
 
     public function render_widget($args) {
@@ -152,7 +180,7 @@ class RbFitocracy {
         try {
             $user = $this->get_user($this->get_option('rb-fitocracy-username'));
             $progressPercent = ($user->points / $user->points_levelup) * 100;
-            
+
             include_once(RBFITOCRACY_DIR . '/src/templates/widget.php');
         } catch (FitocracyException $e) {
             echo '<p>' . $e->getMessage() . '</p>';
@@ -201,6 +229,10 @@ class RbFitocracy {
         $iv = mcrypt_create_iv($iv_size, MCRYPT_RAND);
         $h_key = hash('sha256', $key, TRUE);
         return trim(mcrypt_decrypt(MCRYPT_RIJNDAEL_256, $h_key, base64_decode($encrypted_input_string), MCRYPT_MODE_ECB, $iv));
+    }
+
+    public function deactivation() {
+        wp_clear_scheduled_hook('rb-fitocracy-update-user');
     }
 
 }
