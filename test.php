@@ -1,6 +1,6 @@
 <?php
 
-require('../../../wp-load.php');
+//require('../../../wp-load.php');
 require_once('src/Fitocracy.php');
 
 $f = new Fitocracy('rb-cohen', '');
